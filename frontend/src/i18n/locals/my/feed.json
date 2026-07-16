@@ -1,0 +1,18 @@
+{
+  "breaking_news": "အရေးကြီးသတင်း",
+  "trending": "လူကြိုက်များသော",
+  "for_you": "သင့်အတွက်",
+  "categories": "အမျိုးအစားများ",
+  "politics": "နိုင်ငံရေး",
+  "local": "ပြည်တွင်း",
+  "world": "နိုင်ငံတကာ",
+  "sports": "အားကစား",
+  "tech": "နည်းပညာ",
+  "entertainment": "ဖျော်ဖြေရေး",
+  "search_placeholder": "ဆောင်းပါးများရှာရန်...",
+  "no_results": "ဆောင်းပါးမတွေ့ပါ",
+  "read_more": "ဆက်ဖတ်ရန်",
+  "published_by": "{{name}} မှ ထုတ်ဝေသည်",
+  "views": "ကြည့်ရှုမှု {{count}}",
+  "comments_count": "မှတ်ချက် {{count}}"
+}

@@ -1,0 +1,18 @@
+{
+  "breaking_news": "Breaking News",
+  "trending": "Trending",
+  "for_you": "For You",
+  "categories": "Categories",
+  "politics": "Politics",
+  "local": "Local",
+  "world": "World",
+  "sports": "Sports",
+  "tech": "Tech",
+  "entertainment": "Entertainment",
+  "search_placeholder": "Search articles...",
+  "no_results": "No articles found",
+  "read_more": "Read more",
+  "published_by": "Published by {{name}}",
+  "views": "{{count}} views",
+  "comments_count": "{{count}} comments"
+}

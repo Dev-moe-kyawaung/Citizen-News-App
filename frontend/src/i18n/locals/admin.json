@@ -1,0 +1,15 @@
+{
+  "dashboard": "Dashboard",
+  "review_queue": "Review Queue",
+  "manage_users": "Manage Users",
+  "manage_categories": "Manage Categories",
+  "analytics": "Analytics",
+  "reports_queue": "Reported Content",
+  "top_articles": "Top Articles",
+  "top_reporters": "Top Reporters",
+  "total_views": "Total Views",
+  "total_engagement": "Total Engagement",
+  "suspend_user": "Suspend User",
+  "change_role": "Change Role",
+  "no_pending_articles": "No articles waiting for review"
+}

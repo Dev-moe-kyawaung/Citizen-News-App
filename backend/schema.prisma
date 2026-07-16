@@ -1,0 +1,324 @@
+// Citizen News — Database Schema
+// PostgreSQL via Prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Role {
+  VIEWER
+  REPORTER
+  EDITOR
+  ADMIN
+}
+
+enum ArticleStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  FEATURED
+  ARCHIVED
+}
+
+enum Language {
+  EN
+  MY
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum NotificationType {
+  BREAKING_NEWS
+  ARTICLE_APPROVED
+  ARTICLE_REJECTED
+  NEW_COMMENT
+  NEW_FOLLOWER
+  DAILY_DIGEST
+  MODERATION_ALERT
+}
+
+enum ReportStatus {
+  OPEN
+  ACTIONED
+  DISMISSED
+}
+
+// ─────────────────────────────────────────────
+// CORE MODELS
+// ─────────────────────────────────────────────
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String?   // null if social-login only
+  displayName       String
+  bio               String?
+  avatarUrl         String?
+  role              Role      @default(VIEWER)
+  preferredLanguage Language  @default(EN)
+  darkMode          Boolean   @default(false)
+
+  // trust ladder / anti-spam
+  trustScore        Int       @default(0)
+  isSuspended       Boolean   @default(false)
+  suspendedReason   String?
+
+  // social login
+  googleId          String?   @unique
+  facebookId        String?   @unique
+
+  // push
+  fcmTokens         String[]  @default([])
+
+  emailVerified     Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  articles          Article[]        @relation("AuthorArticles")
+  reviewedArticles  Article[]        @relation("ReviewerArticles")
+  comments          Comment[]
+  likes             Like[]
+  notifications     Notification[]
+  auditLogs         ArticleAuditLog[]
+  refreshTokens     RefreshToken[]
+  reportsFiled      Report[]         @relation("ReportsFiled")
+  devices           Device[]
+
+  followedBy        Follow[] @relation("Followee")
+  following         Follow[] @relation("Follower")
+
+  @@index([role])
+  @@index([email])
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followeeId  String
+  createdAt   DateTime @default(now())
+
+  follower    User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followee    User @relation("Followee", fields: [followeeId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followeeId])
+  @@index([followeeId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Device {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fcmToken  String   @unique
+  platform  String   // "ios" | "android"
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  slug        String   @unique          // e.g. "politics"
+  nameEn      String
+  nameMy      String
+  descriptionEn String?
+  descriptionMy String?
+  iconName    String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+
+  articles    Article[]
+
+  @@index([slug])
+}
+
+model Tag {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  articles ArticleTag[]
+}
+
+model Article {
+  id              String        @id @default(uuid())
+  title           String
+  subtitle        String?
+  bodyHtml        String        // sanitized rich-text HTML
+  language        Language
+  status          ArticleStatus @default(DRAFT)
+
+  authorId        String
+  author          User          @relation("AuthorArticles", fields: [authorId], references: [id])
+
+  categoryId      String
+  category        Category      @relation(fields: [categoryId], references: [id])
+
+  reviewerId      String?
+  reviewer        User?         @relation("ReviewerArticles", fields: [reviewerId], references: [id])
+  editorNote      String?       // reason on reject, visible to author only
+
+  // optional EN <-> MY translation pairing
+  translationOfId String?
+  translationOf   Article?      @relation("Translations", fields: [translationOfId], references: [id])
+  translations    Article[]     @relation("Translations")
+
+  isBreaking      Boolean       @default(false)
+  isFeatured      Boolean       @default(false)
+
+  viewCount       Int           @default(0)
+  likeCount       Int           @default(0)
+  commentCount    Int           @default(0)
+  shareCount      Int           @default(0)
+
+  contentHash     String?       // for duplicate-spam detection
+
+  submittedAt     DateTime?
+  publishedAt     DateTime?
+  deletedAt       DateTime?     // soft delete (only used post-publish history)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  media           Media[]
+  tags            ArticleTag[]
+  comments        Comment[]
+  likes           Like[]
+  auditLogs       ArticleAuditLog[]
+  reports         Report[]
+
+  @@index([status])
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([isBreaking])
+  @@index([isFeatured])
+  @@index([publishedAt])
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model Media {
+  id           String    @id @default(uuid())
+  articleId    String
+  article      Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  type         MediaType
+  originalUrl  String    // pre-processing, private/staging bucket path
+  cdnUrl       String?   // post-transcode/compress, public CDN URL
+  thumbnailUrl String?
+  width        Int?
+  height       Int?
+  durationSec  Int?      // video only
+  sizeBytes    Int?
+  processed    Boolean   @default(false)
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  @@index([articleId])
+}
+
+model Comment {
+  id          String    @id @default(uuid())
+  articleId   String
+  article     Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body        String
+  parentId    String?
+  parent      Comment?  @relation("Replies", fields: [parentId], references: [id])
+  replies     Comment[] @relation("Replies")
+
+  isHidden    Boolean   @default(false) // moderation shadow-hold
+  toxicityScore Float?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  reports     Report[]
+
+  @@index([articleId])
+  @@index([userId])
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([articleId, userId])
+  @@index([articleId])
+}
+
+model ArticleAuditLog {
+  id         String        @id @default(uuid())
+  articleId  String
+  article    Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  actorId    String
+  actor      User          @relation(fields: [actorId], references: [id])
+  fromStatus ArticleStatus
+  toStatus   ArticleStatus
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  @@index([articleId])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?            // e.g. { articleId }
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  reporterId String
+  reporter   User         @relation("ReportsFiled", fields: [reporterId], references: [id])
+  articleId  String?
+  article    Article?     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  commentId  String?
+  comment    Comment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reason     String
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+
+  @@index([status])
+}
